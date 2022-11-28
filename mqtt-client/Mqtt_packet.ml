@@ -81,6 +81,16 @@ type connect = {
   keep_alive : int;
 }
 
+type connack = {
+  session_present : bool;
+  connection_status : connection_status;
+}
+
+type subscribe = {
+  message_id : int;
+  topics : (string * qos) list;
+}
+
 type publish = {
   options : publish_options;
   message_id : int option;
@@ -90,8 +100,8 @@ type publish = {
 
 type t =
   | Connect of connect
-  | Connack of { session_present : bool; connection_status : connection_status }
-  | Subscribe of (int * (string * qos) list)
+  | Connack of connack
+  | Subscribe of subscribe
   | Suback of (int * (qos, unit) result list)
   | Unsubscribe of (int * string list)
   | Unsuback of int
@@ -411,14 +421,14 @@ module Decoder = struct
   let decode_pubcomp rb = Pubcomp (Read_buffer.read_uint16 rb)
 
   let decode_subscribe rb =
-    let id = Read_buffer.read_uint16 rb in
+    let message_id = Read_buffer.read_uint16 rb in
     let get_topic rb =
       let topic = Read_buffer.read_string rb in
       let qos = Read_buffer.read_uint8 rb |> qos_of_bits in
       (topic, qos)
     in
     let topics = Read_buffer.read_all rb get_topic in
-    Subscribe (id, topics)
+    Subscribe { message_id; topics }
 
   let decode_suback rb =
     let id = Read_buffer.read_uint16 rb in

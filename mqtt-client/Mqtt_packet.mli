@@ -30,14 +30,6 @@ type will = {
   retain : bool;
 }
 
-type connect = {
-  client_id : string;
-  credentials : Mqtt_core.credentials option;
-  will : will option;
-  clean_session : bool;
-  keep_alive : int;
-}
-
 type connection_status =
   | Accepted
   | Unacceptable_protocol_version
@@ -52,6 +44,24 @@ val connection_status_to_int : connection_status -> int
 
 val connection_status_of_int : int -> connection_status
 
+type connect = {
+  client_id : string;
+  credentials : Mqtt_core.credentials option;
+  will : will option;
+  clean_session : bool;
+  keep_alive : int;
+}
+
+type connack = {
+  session_present : bool;
+  connection_status : connection_status;
+}
+
+type subscribe = {
+  message_id : int;
+  topics : (string * Mqtt_core.qos) list;
+}
+
 type publish = {
   options : publish_options;
   message_id : int option;
@@ -61,10 +71,8 @@ type publish = {
 
 type t =
   | Connect of connect
-  | Connack of { session_present : bool;
-      connection_status : connection_status;
-    }
-  | Subscribe of (int * (string * Mqtt_core.qos) list)
+  | Connack of connack
+  | Subscribe of subscribe
   | Suback of (int * (Mqtt_core.qos, unit) result list)
   | Unsubscribe of (int * string list)
   | Unsuback of int
