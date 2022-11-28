@@ -73,8 +73,8 @@ type t =
   | Connect of connect
   | Connack of connack
   | Subscribe of subscribe
-  | Suback of (int * (Mqtt_core.qos, unit) result list)
-  | Unsubscribe of (int * string list)
+  | Suback of int * (Mqtt_core.qos, unit) result list
+  | Unsubscribe of int * string list
   | Unsuback of int
   | Publish of publish
   | Puback of int
