@@ -15,7 +15,10 @@ type message_type =
   | Pingresp_pkt
   | Disconnect_pkt
 
-type cxn_flags = Will_retain | Will_qos of Mqtt_core.qos | Clean_session
+type cxn_flags =
+  | Will_retain
+  | Will_qos of Mqtt_core.qos
+  | Clean_session
 
 type cxn_data = {
   clientid : string;
@@ -25,10 +28,13 @@ type cxn_data = {
   keep_alive : int;
 }
 
-type client_options = { ping_timeout : float; cxn_data : cxn_data; }
+type client_options = {
+  ping_timeout : float;
+  cxn_data : cxn_data;
+}
 
 type connection_status =
-    Accepted
+  | Accepted
   | Unacceptable_protocol_version
   | Identifier_rejected
   | Server_unavailable
@@ -42,7 +48,7 @@ val connection_status_to_int : connection_status -> int
 val connection_status_of_int : int -> connection_status
 
 type t =
-    Connect of cxn_data
+  | Connect of cxn_data
   | Connack of { session_present : bool;
       connection_status : connection_status;
     }
@@ -60,10 +66,10 @@ type t =
   | Disconnect
 
 type options = {
-    dup : bool;
-    qos : Mqtt_core.qos;
-    retain : bool;
-  }
+  dup : bool;
+  qos : Mqtt_core.qos;
+  retain : bool;
+}
 
 module Encoder : sig
 
