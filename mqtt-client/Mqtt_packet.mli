@@ -20,10 +20,15 @@ type cxn_flags =
   | Will_qos of Mqtt_core.qos
   | Clean_session
 
+type will = {
+  topic : string;
+  message : string;
+}
+
 type cxn_data = {
   clientid : string;
   credentials : Mqtt_core.credentials option;
-  will : (string * string) option;
+  will : will option;
   flags : cxn_flags list;
   keep_alive : int;
 }
@@ -110,12 +115,12 @@ module Encoder : sig
 
   val connect_payload :
     ?credentials:Mqtt_core.credentials ->
-    ?will:string * string ->
+    ?will:will ->
     ?flags:cxn_flags list -> ?keep_alive:int -> string -> string
 
   val connect :
     ?credentials:Mqtt_core.credentials ->
-    ?will:string * string ->
+    ?will:will ->
     ?flags:cxn_flags list -> ?keep_alive:int -> string -> string
 
   val connect_data : cxn_data -> string

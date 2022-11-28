@@ -29,10 +29,15 @@ type message_type =
 
 type cxn_flags = Will_retain | Will_qos of qos | Clean_session
 
+type will = {
+  topic : string;
+  message : string;
+}
+
 type cxn_data = {
   clientid : string;
   credentials : credentials option;
-  will : (string * string) option;
+  will : will option;
   flags : cxn_flags list;
   keep_alive : int;
 }
@@ -284,16 +289,14 @@ module Encoder = struct
     let name = addlen "MQTT" in
     let version = "\004" in
     if keep_alive > 0xFFFF then raise (Invalid_argument "keep_alive too large");
-    let addhdr2 flag term (flags, hdr) =
-      match term with
-      | None -> (flags, hdr)
-      | Some (a, b) -> (flags lor flag, hdr ^ addlen a ^ addlen b)
+    let addhdr2 flag a b (flags, hdr) =
+      (flags lor flag, hdr ^ addlen a ^ addlen b)
     in
     let adduserpass term (flags, hdr) =
       match term with
       | None -> (flags, hdr)
       | Some (Username s) -> (flags lor 0x80, hdr ^ addlen s)
-      | Some (Credentials (u, p)) -> addhdr2 0xC0 (Some (u, p)) (flags, hdr)
+      | Some (Credentials (u, p)) -> addhdr2 0xC0 u p (flags, hdr)
     in
     let flag_nbr = function
       | Clean_session -> 0x02
@@ -303,7 +306,7 @@ module Encoder = struct
     let accum a acc = acc lor flag_nbr a in
     let flags, pay =
       (List.fold_right accum flags 0, addlen id)
-      |> addhdr2 0x04 will
+      |> opt_with (fun {topic; message} -> addhdr2 0x04 topic message) (fun x -> x) will
       |> adduserpass credentials
     in
     let tbuf = int16be keep_alive in
@@ -360,9 +363,9 @@ module Decoder = struct
     let clientid = rs rb in
     let will =
       if will_flag then
-        let t = rs rb in
-        let m = rs rb in
-        Some (t, m)
+        let topic = rs rb in
+        let message = rs rb in
+        Some {topic; message}
       else None
     in
     let credentials =

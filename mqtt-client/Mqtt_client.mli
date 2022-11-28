@@ -27,7 +27,7 @@ val connect :
   ?id:string ->
   ?tls_ca:string ->
   ?credentials:credentials ->
-  ?will:string * string ->
+  ?will:Mqtt_packet.will ->
   ?clean_session:bool ->
   ?keep_alive:int ->
   ?on_message:(topic:string -> string -> unit Lwt.t) ->
