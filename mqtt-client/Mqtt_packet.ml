@@ -27,22 +27,25 @@ type message_type =
   | Pingresp_pkt
   | Disconnect_pkt
 
-type cxn_flags = Will_retain | Will_qos of qos | Clean_session
-
 type will = {
   topic : string;
   message : string;
+  qos : Mqtt_core.qos;
+  retain : bool;
 }
 
 type cxn_data = {
   clientid : string;
   credentials : credentials option;
   will : will option;
-  flags : cxn_flags list;
+  clean_session : bool;
   keep_alive : int;
 }
 
-type client_options = { ping_timeout : float; cxn_data : cxn_data }
+type client_options = {
+  ping_timeout : float;
+  cxn_data : cxn_data;
+}
 
 type connection_status =
   | Accepted
@@ -94,10 +97,10 @@ type t =
   | Disconnect
 
 type options = {
-    dup : bool;
-    qos : Mqtt_core.qos;
-    retain : bool;
-  }
+  dup : bool;
+  qos : Mqtt_core.qos;
+  retain : bool;
+}
 
 let bits_of_message = function
   | Connect_pkt -> 1
@@ -285,10 +288,16 @@ module Encoder = struct
     Buffer.add_string buf payload;
     Buffer.contents buf
 
-  let connect_payload ?credentials ?will ?(flags = []) ?(keep_alive = 10) id =
+  let connect_payload ?credentials ?will ?(clean_session = false) ?(keep_alive = 10) id =
     let name = addlen "MQTT" in
     let version = "\004" in
+    let clean_session_bit = 0x02 in
+    let will_retain_bit = 0x20 in
+    let qos_bits qos = bits_of_qos qos lsl 3 in
     if keep_alive > 0xFFFF then raise (Invalid_argument "keep_alive too large");
+    let addbit switch bit (flags, hdr) =
+      (if switch then flags lor bit else flags), hdr
+    in
     let addhdr2 flag a b (flags, hdr) =
       (flags lor flag, hdr ^ addlen a ^ addlen b)
     in
@@ -298,15 +307,14 @@ module Encoder = struct
       | Some (Username s) -> (flags lor 0x80, hdr ^ addlen s)
       | Some (Credentials (u, p)) -> addhdr2 0xC0 u p (flags, hdr)
     in
-    let flag_nbr = function
-      | Clean_session -> 0x02
-      | Will_qos qos -> bits_of_qos qos lsl 3
-      | Will_retain -> 0x20
-    in
-    let accum a acc = acc lor flag_nbr a in
     let flags, pay =
-      (List.fold_right accum flags 0, addlen id)
-      |> opt_with (fun {topic; message} -> addhdr2 0x04 topic message) (fun x -> x) will
+      (0, addlen id)
+      |> addbit clean_session clean_session_bit
+      |> opt_with (fun {topic; message; qos; retain} (flags, hdr) ->
+             (flags lor qos_bits qos, hdr)
+             |> addbit retain will_retain_bit
+             |> addhdr2 0x04 topic message
+           ) (fun x -> x) will
       |> adduserpass credentials
     in
     let tbuf = int16be keep_alive in
@@ -321,8 +329,8 @@ module Encoder = struct
     List.iter (Buffer.add_string buf) fields;
     Buffer.contents buf
 
-  let connect ?credentials ?will ?flags ?keep_alive id =
-    let cxn_pay = connect_payload ?credentials ?will ?flags ?keep_alive id in
+  let connect ?credentials ?will ?clean_session ?keep_alive id =
+    let cxn_pay = connect_payload ?credentials ?will ?clean_session ?keep_alive id in
     let hdr = fixed_header Connect_pkt (String.length cxn_pay) in
     hdr ^ cxn_pay
 
@@ -330,9 +338,9 @@ module Encoder = struct
     let clientid = d.clientid in
     let credentials = d.credentials in
     let will = d.will in
-    let flags = d.flags in
+    let clean_session = d.clean_session in
     let keep_alive = d.keep_alive in
-    connect_payload ?credentials ?will ~flags ~keep_alive clientid
+    connect_payload ?credentials ?will ~clean_session ~keep_alive clientid
 
   let connack ~session_present status =
     let fixed_header = fixed_header Connack_pkt 2 in
@@ -354,18 +362,16 @@ module Decoder = struct
     let has_username = 0 <> hdr land 0x80 in
     let has_password = 0 <> hdr land 0xC0 in
     let will_flag = bool_of_bit ((hdr land 0x04) lsr 2) in
-    let will_retain = will_flag && 0 <> hdr land 0x20 in
-    let will_qos =
-      if will_flag then Some (qos_of_bits ((hdr land 0x18) lsr 3)) else None
-    in
     let clean_session = bool_of_bit ((hdr land 0x02) lsr 1) in
     let rs = Read_buffer.read_string in
     let clientid = rs rb in
     let will =
       if will_flag then
+        let qos = qos_of_bits ((hdr land 0x18) lsr 3) in
+        let retain = 0 <> hdr land 0x20 in
         let topic = rs rb in
         let message = rs rb in
-        Some {topic; message}
+        Some {topic; message; qos; retain}
       else None
     in
     let credentials =
@@ -376,10 +382,7 @@ module Decoder = struct
       else if has_username then Some (Username (rs rb))
       else None
     in
-    let flags = if clean_session then [ Clean_session ] else [] in
-    let flags = opt_with (fun qos -> Will_qos qos :: flags) flags will_qos in
-    let flags = if will_retain then Will_retain :: flags else flags in
-    Connect { clientid; credentials; will; flags; keep_alive }
+    Connect { clientid; credentials; will; clean_session; keep_alive }
 
   let decode_connack rb =
     let flags = Read_buffer.read_uint8 rb in

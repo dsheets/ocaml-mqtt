@@ -15,21 +15,18 @@ type message_type =
   | Pingresp_pkt
   | Disconnect_pkt
 
-type cxn_flags =
-  | Will_retain
-  | Will_qos of Mqtt_core.qos
-  | Clean_session
-
 type will = {
   topic : string;
   message : string;
+  qos : Mqtt_core.qos;
+  retain : bool;
 }
 
 type cxn_data = {
   clientid : string;
   credentials : Mqtt_core.credentials option;
   will : will option;
-  flags : cxn_flags list;
+  clean_session : bool;
   keep_alive : int;
 }
 
@@ -116,12 +113,12 @@ module Encoder : sig
   val connect_payload :
     ?credentials:Mqtt_core.credentials ->
     ?will:will ->
-    ?flags:cxn_flags list -> ?keep_alive:int -> string -> string
+    ?clean_session:bool -> ?keep_alive:int -> string -> string
 
   val connect :
     ?credentials:Mqtt_core.credentials ->
     ?will:will ->
-    ?flags:cxn_flags list -> ?keep_alive:int -> string -> string
+    ?clean_session:bool -> ?keep_alive:int -> string -> string
 
   val connect_data : cxn_data -> string
 
