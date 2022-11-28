@@ -40,19 +40,6 @@ type will = {
   retain : bool;
 }
 
-type cxn_data = {
-  clientid : string;
-  credentials : credentials option;
-  will : will option;
-  clean_session : bool;
-  keep_alive : int;
-}
-
-type client_options = {
-  ping_timeout : float;
-  cxn_data : cxn_data;
-}
-
 type connection_status =
   | Accepted
   | Unacceptable_protocol_version
@@ -86,6 +73,14 @@ let connection_status_of_int = function
   | 5 -> Not_authorized
   | _ -> raise (Invalid_argument "Invalid connection status code")
 
+type connect = {
+  client_id : string;
+  credentials : credentials option;
+  will : will option;
+  clean_session : bool;
+  keep_alive : int;
+}
+
 type publish = {
   options : publish_options;
   message_id : int option;
@@ -94,7 +89,7 @@ type publish = {
 }
 
 type t =
-  | Connect of cxn_data
+  | Connect of connect
   | Connack of { session_present : bool; connection_status : connection_status }
   | Subscribe of (int * (string * qos) list)
   | Suback of (int * (qos, unit) result list)
@@ -343,12 +338,12 @@ module Encoder = struct
     hdr ^ cxn_pay
 
   let connect_data d =
-    let clientid = d.clientid in
+    let client_id = d.client_id in
     let credentials = d.credentials in
     let will = d.will in
     let clean_session = d.clean_session in
     let keep_alive = d.keep_alive in
-    connect_payload ?credentials ?will ~clean_session ~keep_alive clientid
+    connect_payload ?credentials ?will ~clean_session ~keep_alive client_id
 
   let connack ~session_present status =
     let fixed_header = fixed_header Connack_pkt 2 in
@@ -372,7 +367,7 @@ module Decoder = struct
     let will_flag = bool_of_bit ((hdr land 0x04) lsr 2) in
     let clean_session = bool_of_bit ((hdr land 0x02) lsr 1) in
     let rs = Read_buffer.read_string in
-    let clientid = rs rb in
+    let client_id = rs rb in
     let will =
       if will_flag then
         let qos = qos_of_bits ((hdr land 0x18) lsr 3) in
@@ -390,7 +385,7 @@ module Decoder = struct
       else if has_username then Some (Username (rs rb))
       else None
     in
-    Connect { clientid; credentials; will; clean_session; keep_alive }
+    Connect { client_id; credentials; will; clean_session; keep_alive }
 
   let decode_connack rb =
     let flags = Read_buffer.read_uint8 rb in

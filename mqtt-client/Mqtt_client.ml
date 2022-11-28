@@ -220,18 +220,12 @@ let connect ?(id = "ocaml-mqtt") ?tls_ca ?credentials ?will
     ?(clean_session = true) ?(keep_alive = 30)
     ?(on_message = default_on_message) ?(on_disconnect = default_on_disconnect)
     ?(on_error = default_on_error) ?(port = 1883) hosts =
-  let cxn_data =
-    { Mqtt_packet.clientid = id; credentials; will; clean_session; keep_alive }
-  in
-
   let%lwt ((ic, oc) as connection) =
     create_connection ?tls_ca ~port ~client_id:id hosts
   in
 
   let connect_packet =
-    Mqtt_packet.Encoder.connect ?credentials:cxn_data.credentials
-      ?will:cxn_data.will ~clean_session:cxn_data.clean_session ~keep_alive:cxn_data.keep_alive
-      cxn_data.clientid
+    Mqtt_packet.Encoder.connect ?credentials ?will ~clean_session ~keep_alive id
   in
   let%lwt () = Lwt_io.write oc connect_packet in
   let inflight = Hashtbl.create 16 in

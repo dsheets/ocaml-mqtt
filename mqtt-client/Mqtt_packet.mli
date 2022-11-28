@@ -30,17 +30,12 @@ type will = {
   retain : bool;
 }
 
-type cxn_data = {
-  clientid : string;
+type connect = {
+  client_id : string;
   credentials : Mqtt_core.credentials option;
   will : will option;
   clean_session : bool;
   keep_alive : int;
-}
-
-type client_options = {
-  ping_timeout : float;
-  cxn_data : cxn_data;
 }
 
 type connection_status =
@@ -65,7 +60,7 @@ type publish = {
 }
 
 type t =
-  | Connect of cxn_data
+  | Connect of connect
   | Connack of { session_present : bool;
       connection_status : connection_status;
     }
@@ -121,7 +116,7 @@ module Encoder : sig
     ?will:will ->
     ?clean_session:bool -> ?keep_alive:int -> string -> string
 
-  val connect_data : cxn_data -> string
+  val connect_data : connect -> string
 
   val connack : session_present:bool -> connection_status -> string
 end
