@@ -75,21 +75,13 @@ type options = {
 
 module Encoder : sig
 
-  val encode_length : int -> int32
-
-  val fixed_header : message_type -> ?flags:int -> int -> string
-
   val unsubscribe : id:int -> string list -> string
 
   val unsuback : int -> string
 
-  val simple_pkt : message_type -> string
-
   val pingreq : unit -> string
 
   val pingresp : unit -> string
-
-  val pubpkt : ?flags:int -> message_type -> int -> string
 
   val pubrec : int -> string
 
@@ -126,34 +118,6 @@ module Encoder : sig
 end
 
 module Decoder : sig
-
-  val decode_connect : Read_buffer.t -> t
-
-  val decode_connack : Read_buffer.t -> t
-
-  val decode_publish : options -> Read_buffer.t -> t
-
-  val decode_puback : Read_buffer.t -> t
-
-  val decode_pubrec : Read_buffer.t -> t
-
-  val decode_pubrel : Read_buffer.t -> t
-
-  val decode_pubcomp : Read_buffer.t -> t
-
-  val decode_subscribe : Read_buffer.t -> t
-
-  val decode_suback : Read_buffer.t -> t
-
-  val decode_unsub : Read_buffer.t -> t
-
-  val decode_unsuback : Read_buffer.t -> t
-
-  val decode_pingreq : 'a -> t
-
-  val decode_pingresp : 'a -> t
-
-  val decode_disconnect : 'a -> t
 
   val decode_packet : options -> message_type -> Read_buffer.t -> t
 

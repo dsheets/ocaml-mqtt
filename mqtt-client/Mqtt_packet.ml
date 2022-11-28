@@ -102,7 +102,7 @@ type options = {
   retain : bool;
 }
 
-let bits_of_message = function
+let bits_of_message_type = function
   | Connect_pkt -> 1
   | Connack_pkt -> 2
   | Publish_pkt -> 3
@@ -118,7 +118,7 @@ let bits_of_message = function
   | Pingresp_pkt -> 13
   | Disconnect_pkt -> 14
 
-let message_of_bits = function
+let message_type_of_bits = function
   | 1 -> Connect_pkt
   | 2 -> Connack_pkt
   | 3 -> Publish_pkt
@@ -133,7 +133,7 @@ let message_of_bits = function
   | 12 -> Pingreq_pkt
   | 13 -> Pingresp_pkt
   | 14 -> Disconnect_pkt
-  | _ -> raise (Invalid_argument "invalid bits in message")
+  | _ -> raise (Invalid_argument "invalid bits for message_type")
 
 let bits_of_qos = function
   | Atmost_once -> 0
@@ -188,7 +188,7 @@ module Encoder = struct
     loop len 0l
 
   let fixed_header typ ?(flags = 0) body_len =
-    let msgid = bits_of_message typ lsl 4 in
+    let msgid = bits_of_message_type typ lsl 4 in
     let hdr = Bytes.create 1 in
     let len = Bytes.create 4 in
     BE.set_int8 hdr 0 (msgid + flags);
@@ -454,7 +454,7 @@ module Decoder = struct
     let dup = (byte land 0x08) lsr 3 in
     let qos = (byte land 0x06) lsr 1 in
     let retain = byte land 0x01 in
-    let typ = message_of_bits typ in
+    let typ = message_type_of_bits typ in
     let dup = bool_of_bit dup in
     let qos = qos_of_bits qos in
     let retain = bool_of_bit retain in
