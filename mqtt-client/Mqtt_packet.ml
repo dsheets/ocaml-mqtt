@@ -1,13 +1,6 @@
 module BE = EndianBytes.BigEndian
 open Mqtt_core
 
-let _msgid = ref 0
-
-let gen_id () =
-  let () = incr _msgid in
-  if !_msgid >= 0xFFFF then _msgid := 1;
-  !_msgid
-
 let int16be n =
   let s = Bytes.create 2 in
   BE.set_int16 s 0 n;
@@ -166,9 +159,6 @@ let addlen s =
   Bytes.to_string (int16be len) ^ s
 
 let opt_with s n = function Some a -> s a | None -> n
-let puback id = Puback id
-let pubrec id = Pubrec id
-let pubcomp id = Pubcomp id
 
 module Encoder = struct
   let encode_length len =

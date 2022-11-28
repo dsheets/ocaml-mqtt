@@ -2,6 +2,13 @@ let fmt = Format.asprintf
 
 type connection = Lwt_io.input_channel * Lwt_io.output_channel
 
+let _msgid = ref 0
+
+let gen_id () =
+  let () = incr _msgid in
+  if !_msgid >= 0xFFFF then _msgid := 1;
+  !_msgid
+
 let decode_length inch =
   let rec loop value mult =
     let%lwt ch = Lwt_io.read_char inch in
@@ -295,9 +302,9 @@ let publish ?(dup = false) ?(qos = Mqtt_core.Atleast_once) ?(retain = false)
     in
     Lwt_io.write oc pkt_data
   | Atleast_once ->
-    let id = Mqtt_packet.gen_id () in
+    let id = gen_id () in
     let cond = Lwt_condition.create () in
-    let expected_ack_pkt = Mqtt_packet.puback id in
+    let expected_ack_pkt = Mqtt_packet.Puback id in
     Hashtbl.add client.inflight id (cond, expected_ack_pkt);
     let pkt_data =
       Mqtt_packet.Encoder.publish ~dup ~qos ~retain ~id ~topic payload
@@ -305,16 +312,16 @@ let publish ?(dup = false) ?(qos = Mqtt_core.Atleast_once) ?(retain = false)
     let%lwt () = Lwt_io.write oc pkt_data in
     Lwt_condition.wait cond
   | Exactly_once ->
-    let id = Mqtt_packet.gen_id () in
+    let id = gen_id () in
     let cond = Lwt_condition.create () in
-    let expected_ack_pkt = Mqtt_packet.pubrec id in
+    let expected_ack_pkt = Mqtt_packet.Pubrec id in
     Hashtbl.add client.inflight id (cond, expected_ack_pkt);
     let pkt_data =
       Mqtt_packet.Encoder.publish ~dup ~qos ~retain ~id ~topic payload
     in
     let%lwt () = Lwt_io.write oc pkt_data in
     let%lwt () = Lwt_condition.wait cond in
-    let expected_ack_pkt = Mqtt_packet.pubcomp id in
+    let expected_ack_pkt = Mqtt_packet.Pubcomp id in
     Hashtbl.add client.inflight id (cond, expected_ack_pkt);
     let pkt_data = Mqtt_packet.Encoder.pubrel id in
     let%lwt () = Lwt_io.write oc pkt_data in
@@ -323,7 +330,7 @@ let publish ?(dup = false) ?(qos = Mqtt_core.Atleast_once) ?(retain = false)
 let subscribe topics client =
   if topics = [] then raise (Invalid_argument "empty topics");
   let _, oc = client.cxn in
-  let pkt_id = Mqtt_packet.gen_id () in
+  let pkt_id = gen_id () in
   let subscribe_packet = Mqtt_packet.Encoder.subscribe ~id:pkt_id topics in
   let qos_list = List.map (fun (_, q) -> Ok q) topics in
   let cond = Lwt_condition.create () in
