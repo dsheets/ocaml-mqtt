@@ -11,10 +11,16 @@ let int8be n =
   BE.set_int8 s 0 n;
   s
 
+type publish_options = {
+  dup : bool;
+  qos : Mqtt_core.qos;
+  retain : bool;
+}
+
 type message_type =
   | Connect_pkt
   | Connack_pkt
-  | Publish_pkt
+  | Publish_pkt of publish_options
   | Puback_pkt
   | Pubrec_pkt
   | Pubrel_pkt
@@ -80,6 +86,13 @@ let connection_status_of_int = function
   | 5 -> Not_authorized
   | _ -> raise (Invalid_argument "Invalid connection status code")
 
+type publish = {
+  options : publish_options;
+  message_id : int option;
+  topic : string;
+  payload : string;
+}
+
 type t =
   | Connect of cxn_data
   | Connack of { session_present : bool; connection_status : connection_status }
@@ -87,7 +100,7 @@ type t =
   | Suback of (int * (qos, unit) result list)
   | Unsubscribe of (int * string list)
   | Unsuback of int
-  | Publish of (int option * string * string)
+  | Publish of publish
   | Puback of int
   | Pubrec of int
   | Pubrel of int
@@ -95,45 +108,6 @@ type t =
   | Pingreq
   | Pingresp
   | Disconnect
-
-type options = {
-  dup : bool;
-  qos : Mqtt_core.qos;
-  retain : bool;
-}
-
-let bits_of_message_type = function
-  | Connect_pkt -> 1
-  | Connack_pkt -> 2
-  | Publish_pkt -> 3
-  | Puback_pkt -> 4
-  | Pubrec_pkt -> 5
-  | Pubrel_pkt -> 6
-  | Pubcomp_pkt -> 7
-  | Subscribe_pkt -> 8
-  | Suback_pkt -> 9
-  | Unsubscribe_pkt -> 10
-  | Unsuback_pkt -> 11
-  | Pingreq_pkt -> 12
-  | Pingresp_pkt -> 13
-  | Disconnect_pkt -> 14
-
-let message_type_of_bits = function
-  | 1 -> Connect_pkt
-  | 2 -> Connack_pkt
-  | 3 -> Publish_pkt
-  | 4 -> Puback_pkt
-  | 5 -> Pubrec_pkt
-  | 6 -> Pubrel_pkt
-  | 7 -> Pubcomp_pkt
-  | 8 -> Subscribe_pkt
-  | 9 -> Suback_pkt
-  | 10 -> Unsubscribe_pkt
-  | 11 -> Unsuback_pkt
-  | 12 -> Pingreq_pkt
-  | 13 -> Pingresp_pkt
-  | 14 -> Disconnect_pkt
-  | _ -> raise (Invalid_argument "invalid bits for message_type")
 
 let bits_of_qos = function
   | Atmost_once -> 0
@@ -155,6 +129,49 @@ let bool_of_bit = function
   | n ->
     raise
       (Invalid_argument ("expected zero or one, but got " ^ string_of_int n))
+
+let byte_of_message_type = function
+  | Connect_pkt      ->  1 lsl 4
+  | Connack_pkt      ->  2 lsl 4
+  | Puback_pkt       ->  4 lsl 4
+  | Pubrec_pkt       ->  5 lsl 4
+  | Pubrel_pkt       ->  6 lsl 4 + 2
+  | Pubcomp_pkt      ->  7 lsl 4
+  | Subscribe_pkt    ->  8 lsl 4 + 2
+  | Suback_pkt       ->  9 lsl 4
+  | Unsubscribe_pkt  -> 10 lsl 4 + 2
+  | Unsuback_pkt     -> 11 lsl 4
+  | Pingreq_pkt      -> 12 lsl 4
+  | Pingresp_pkt     -> 13 lsl 4
+  | Disconnect_pkt   -> 14 lsl 4
+  | Publish_pkt opts ->
+    (3 lsl 4) +
+      (if opts.dup then 1 lsl 3 else 0) +
+      (bits_of_qos opts.qos lsl 1) +
+      bit_of_bool opts.retain
+
+let message_type_of_byte byte = match byte with
+  | 16  -> Connect_pkt     (* 1 *)
+  | 32  -> Connack_pkt     (* 2 *)
+  | 64  -> Puback_pkt      (* 4 *)
+  | 80  -> Pubrec_pkt      (* 5 *)
+  | 98  -> Pubrel_pkt      (* 6 + reserved *)
+  | 112 -> Pubcomp_pkt     (* 7 *)
+  | 130 -> Subscribe_pkt   (* 8 + reserved *)
+  | 144 -> Suback_pkt      (* 9 *)
+  | 162 -> Unsubscribe_pkt (* 10 + reserved *)
+  | 176 -> Unsuback_pkt    (* 11 *)
+  | 192 -> Pingreq_pkt     (* 12 *)
+  | 208 -> Pingresp_pkt    (* 13 *)
+  | 224 -> Disconnect_pkt  (* 14 *)
+  | _   ->
+    if byte lsr 4 = 3 (* publish *)
+    then
+      let dup = byte land 0x08 <> 0 in
+      let qos = qos_of_bits ((byte land 0x06) lsr 1) in
+      let retain = byte land 0x01 <> 0 in
+      Publish_pkt { dup; qos; retain }
+    else raise (Invalid_argument ("invalid bits " ^ string_of_int byte ^ " for message_type"))
 
 let trunc str =
   (* truncate leading zeroes *)
@@ -187,14 +204,11 @@ module Encoder = struct
     in
     loop len 0l
 
-  let fixed_header typ ?(flags = 0) body_len =
-    let msgid = bits_of_message_type typ lsl 4 in
-    let hdr = Bytes.create 1 in
+  let fixed_header typ body_len =
     let len = Bytes.create 4 in
-    BE.set_int8 hdr 0 (msgid + flags);
     BE.set_int32 len 0 (encode_length body_len);
     let len = trunc (Bytes.to_string len) in
-    Bytes.to_string hdr ^ len
+    String.make 1 (char_of_int (byte_of_message_type typ)) ^ len
 
   let unsubscribe ~id topics =
     let accum acc i = acc + 2 + String.length i in
@@ -204,7 +218,7 @@ module Encoder = struct
     (* ~5 for fixed header *)
     let addtopic t = addlen t |> Buffer.add_string buf in
     let msgid = int16be id |> Bytes.to_string in
-    let hdr = fixed_header Unsubscribe_pkt ~flags:2 tl in
+    let hdr = fixed_header Unsubscribe_pkt tl in
     Buffer.add_string buf hdr;
     Buffer.add_string buf msgid;
     List.iter addtopic topics;
@@ -219,8 +233,8 @@ module Encoder = struct
   let pingreq () = simple_pkt Pingreq_pkt
   let pingresp () = simple_pkt Pingresp_pkt
 
-  let pubpkt ?flags typ id =
-    let hdr = fixed_header ?flags typ 2 in
+  let pubpkt typ id =
+    let hdr = fixed_header typ 2 in
     let msgid = int16be id |> Bytes.to_string in
     let buf = Buffer.create 4 in
     Buffer.add_string buf hdr;
@@ -228,7 +242,7 @@ module Encoder = struct
     Buffer.contents buf
 
   let pubrec = pubpkt Pubrec_pkt
-  let pubrel = pubpkt ~flags:2 Pubrel_pkt
+  let pubrel = pubpkt Pubrel_pkt
   let pubcomp = pubpkt Pubcomp_pkt
 
   let suback id qoses =
@@ -258,7 +272,7 @@ module Encoder = struct
       Buffer.add_string buf (Bytes.to_string @@ int8be (bits_of_qos q))
     in
     let msgid = int16be id |> Bytes.to_string in
-    let hdr = fixed_header Subscribe_pkt ~flags:2 tl in
+    let hdr = fixed_header Subscribe_pkt tl in
     Buffer.add_string buf hdr;
     Buffer.add_string buf msgid;
     List.iter addtopic topics;
@@ -275,13 +289,7 @@ module Encoder = struct
     let sl = String.length in
     let tl = sl topic + sl payload + sl id_data in
     let buf = Buffer.create (tl + 5) in
-    let flags =
-      let dup = bit_of_bool dup lsl 3 in
-      let qos = bits_of_qos qos lsl 1 in
-      let retain = bit_of_bool retain in
-      dup + qos + retain
-    in
-    let hdr = fixed_header Publish_pkt ~flags tl in
+    let hdr = fixed_header (Publish_pkt { dup; qos; retain }) tl in
     Buffer.add_string buf hdr;
     Buffer.add_string buf topic;
     Buffer.add_string buf id_data;
@@ -392,15 +400,15 @@ module Decoder = struct
     in
     Connack { session_present; connection_status }
 
-  let decode_publish { qos ; _ } rb =
+  let decode_publish (options : publish_options) rb =
     let topic = Read_buffer.read_string rb in
-    let msgid =
-      if qos = Atleast_once || qos = Exactly_once then
+    let message_id =
+      if options.qos = Atleast_once || options.qos = Exactly_once then
         Some (Read_buffer.read_uint16 rb)
       else None
     in
     let payload = Read_buffer.len rb |> Read_buffer.read rb in
-    Publish (msgid, topic, payload)
+    Publish { options; message_id; topic; payload }
 
   let decode_puback rb = Puback (Read_buffer.read_uint16 rb)
   let decode_pubrec rb = Pubrec (Read_buffer.read_uint16 rb)
@@ -433,10 +441,10 @@ module Decoder = struct
   let decode_pingresp _rb = Pingresp
   let decode_disconnect _rb = Disconnect
 
-  let decode_packet opts = function
+  let decode_packet = function
     | Connect_pkt -> decode_connect
     | Connack_pkt -> decode_connack
-    | Publish_pkt -> decode_publish opts
+    | Publish_pkt opts -> decode_publish opts
     | Puback_pkt -> decode_puback
     | Pubrec_pkt -> decode_pubrec
     | Pubrel_pkt -> decode_pubrel
@@ -448,15 +456,4 @@ module Decoder = struct
     | Pingreq_pkt -> decode_pingreq
     | Pingresp_pkt -> decode_pingresp
     | Disconnect_pkt -> decode_disconnect
-
-  let decode_fixed_header byte : message_type * options =
-    let typ = (byte land 0xF0) lsr 4 in
-    let dup = (byte land 0x08) lsr 3 in
-    let qos = (byte land 0x06) lsr 1 in
-    let retain = byte land 0x01 in
-    let typ = message_type_of_bits typ in
-    let dup = bool_of_bit dup in
-    let qos = qos_of_bits qos in
-    let retain = bool_of_bit retain in
-    (typ, { dup; qos; retain })
 end

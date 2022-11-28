@@ -22,9 +22,7 @@ let decode_length inch =
 
 let read_packet inch =
   let%lwt header_byte = Lwt_io.read_char inch in
-  let msgid, opts =
-    Mqtt_packet.Decoder.decode_fixed_header (Char.code header_byte)
-  in
+  let typ = Mqtt_packet.message_type_of_byte (Char.code header_byte) in
   let%lwt count = decode_length inch in
 
   let data = Bytes.create count in
@@ -34,9 +32,9 @@ let read_packet inch =
   in
   let pkt =
     Read_buffer.make (data |> Bytes.to_string)
-    |> Mqtt_packet.Decoder.decode_packet opts msgid
+    |> Mqtt_packet.Decoder.decode_packet typ
   in
-  Lwt.return (opts, pkt)
+  Lwt.return pkt
 
 module Log = (val Logs_lwt.src_log (Logs.Src.create "mqtt.client"))
 
@@ -78,25 +76,25 @@ let read_packets client =
   in
 
   let rec loop () =
-    let%lwt { qos ; _ }, packet = read_packet in_chan in
+    let%lwt packet = read_packet in_chan in
     let%lwt () =
       match packet with
       (* Publish with QoS 0: push *)
-      | Publish (None, topic, payload) when qos = Atmost_once ->
+      | Publish { options = { qos = Atmost_once; _ }; message_id = None; topic; payload } ->
         client.on_message ~topic payload
       (* Publish with QoS 0 and packet identifier: error *)
-      | Publish (Some _id, _topic, _payload) when qos = Atmost_once ->
+      | Publish { options = { qos = Atmost_once; _ }; message_id = Some _; _ } ->
         Lwt.fail
           (Failure
              "protocol violation: publish packet with qos 0 must not have id")
       (* Publish with QoS 1 *)
-      | Publish (Some id, topic, payload) when qos = Atleast_once ->
+      | Publish { options = { qos = Atleast_once; _ }; message_id = Some id; topic; payload } ->
         (* - Push the message to the consumer queue.
            - Send back the PUBACK packet. *)
         let%lwt () = client.on_message ~topic payload in
         let puback = Mqtt_packet.Encoder.puback id in
         Lwt_io.write out_chan puback
-      | Publish (None, _topic, _payload) when qos = Atleast_once ->
+      | Publish { options = { qos = Atleast_once; _ }; message_id = None; _} ->
         Lwt.fail
           (Failure
              "protocol violation: publish packet with qos > 0 must have id")
@@ -239,7 +237,7 @@ let connect ?(id = "ocaml-mqtt") ?tls_ca ?credentials ?will
   let inflight = Hashtbl.create 16 in
 
   match%lwt read_packet ic with
-  | _, Connack { connection_status = Accepted; session_present } ->
+  | Connack { connection_status = Accepted; session_present } ->
     let%lwt () =
       Log.debug (fun log ->
           log "[%s] Connection acknowledged (session_present=%b)" id
@@ -274,7 +272,7 @@ let connect ?(id = "ocaml-mqtt") ?tls_ca ?credentials ?will
         shutdown client);
 
     Lwt.return client
-  | _, Connack pkt ->
+  | Connack pkt ->
     let conn_status =
       Mqtt_packet.connection_status_to_string pkt.connection_status
     in

@@ -1,8 +1,14 @@
 
+type publish_options = {
+  dup : bool;
+  qos : Mqtt_core.qos;
+  retain : bool;
+}
+
 type message_type =
   | Connect_pkt
   | Connack_pkt
-  | Publish_pkt
+  | Publish_pkt of publish_options
   | Puback_pkt
   | Pubrec_pkt
   | Pubrel_pkt
@@ -14,6 +20,8 @@ type message_type =
   | Pingreq_pkt
   | Pingresp_pkt
   | Disconnect_pkt
+
+val message_type_of_byte : int -> message_type
 
 type will = {
   topic : string;
@@ -49,6 +57,13 @@ val connection_status_to_int : connection_status -> int
 
 val connection_status_of_int : int -> connection_status
 
+type publish = {
+  options : publish_options;
+  message_id : int option;
+  topic : string;
+  payload : string;
+}
+
 type t =
   | Connect of cxn_data
   | Connack of { session_present : bool;
@@ -58,7 +73,7 @@ type t =
   | Suback of (int * (Mqtt_core.qos, unit) result list)
   | Unsubscribe of (int * string list)
   | Unsuback of int
-  | Publish of (int option * string * string)
+  | Publish of publish
   | Puback of int
   | Pubrec of int
   | Pubrel of int
@@ -66,12 +81,6 @@ type t =
   | Pingreq
   | Pingresp
   | Disconnect
-
-type options = {
-  dup : bool;
-  qos : Mqtt_core.qos;
-  retain : bool;
-}
 
 module Encoder : sig
 
@@ -119,7 +128,6 @@ end
 
 module Decoder : sig
 
-  val decode_packet : options -> message_type -> Read_buffer.t -> t
+  val decode_packet : message_type -> Read_buffer.t -> t
 
-  val decode_fixed_header : int -> message_type * options
 end
