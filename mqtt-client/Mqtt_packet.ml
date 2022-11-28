@@ -11,7 +11,7 @@ let int8be n =
   BE.set_int8 s 0 n;
   s
 
-type messages =
+type message_type =
   | Connect_pkt
   | Connack_pkt
   | Publish_pkt
@@ -439,7 +439,7 @@ module Decoder = struct
     | Pingresp_pkt -> decode_pingresp
     | Disconnect_pkt -> decode_disconnect
 
-  let decode_fixed_header byte : messages * options =
+  let decode_fixed_header byte : message_type * options =
     let typ = (byte land 0xF0) lsr 4 in
     let dup = (byte land 0x08) lsr 3 in
     let qos = (byte land 0x06) lsr 1 in

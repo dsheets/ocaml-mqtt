@@ -1,6 +1,6 @@
 
-type messages =
-    Connect_pkt
+type message_type =
+  | Connect_pkt
   | Connack_pkt
   | Publish_pkt
   | Puback_pkt
@@ -65,19 +65,19 @@ module Encoder : sig
 
   val encode_length : int -> int32
 
-  val fixed_header : messages -> ?flags:int -> int -> string
+  val fixed_header : message_type -> ?flags:int -> int -> string
 
   val unsubscribe : id:int -> string list -> string
 
   val unsuback : int -> string
 
-  val simple_pkt : messages -> string
+  val simple_pkt : message_type -> string
 
   val pingreq : unit -> string
 
   val pingresp : unit -> string
 
-  val pubpkt : ?flags:int -> messages -> int -> string
+  val pubpkt : ?flags:int -> message_type -> int -> string
 
   val pubrec : int -> string
 
@@ -144,7 +144,7 @@ module Decoder : sig
   val decode_disconnect : 'a -> t
 
   val decode_packet :
-    'a * Mqtt_core.qos * 'b -> messages -> Read_buffer.t -> t
+    'a * Mqtt_core.qos * 'b -> message_type -> Read_buffer.t -> t
 
-  val decode_fixed_header : int -> messages * options
+  val decode_fixed_header : int -> message_type * options
 end
