@@ -78,7 +78,7 @@ let read_packets client =
   in
 
   let rec loop () =
-    let%lwt (_dup, qos, _retain), packet = read_packet in_chan in
+    let%lwt { qos ; _ }, packet = read_packet in_chan in
     let%lwt () =
       match packet with
       (* Publish with QoS 0: push *)

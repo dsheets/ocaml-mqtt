@@ -88,7 +88,11 @@ type t =
   | Pingresp
   | Disconnect
 
-type options = bool * qos * bool
+type options = {
+    dup : bool;
+    qos : Mqtt_core.qos;
+    retain : bool;
+  }
 
 let bits_of_message = function
   | Connect_pkt -> 1
@@ -382,7 +386,7 @@ module Decoder = struct
     in
     Connack { session_present; connection_status }
 
-  let decode_publish (_, qos, _) rb =
+  let decode_publish { qos ; _ } rb =
     let topic = Read_buffer.read_string rb in
     let msgid =
       if qos = Atleast_once || qos = Exactly_once then
@@ -448,5 +452,5 @@ module Decoder = struct
     let dup = bool_of_bit dup in
     let qos = qos_of_bits qos in
     let retain = bool_of_bit retain in
-    (typ, (dup, qos, retain))
+    (typ, { dup; qos; retain })
 end

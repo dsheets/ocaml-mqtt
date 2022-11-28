@@ -59,7 +59,11 @@ type t =
   | Pingresp
   | Disconnect
 
-type options = bool * Mqtt_core.qos * bool
+type options = {
+    dup : bool;
+    qos : Mqtt_core.qos;
+    retain : bool;
+  }
 
 module Encoder : sig
 
@@ -119,7 +123,7 @@ module Decoder : sig
 
   val decode_connack : Read_buffer.t -> t
 
-  val decode_publish : 'a * Mqtt_core.qos * 'b -> Read_buffer.t -> t
+  val decode_publish : options -> Read_buffer.t -> t
 
   val decode_puback : Read_buffer.t -> t
 
@@ -143,8 +147,7 @@ module Decoder : sig
 
   val decode_disconnect : 'a -> t
 
-  val decode_packet :
-    'a * Mqtt_core.qos * 'b -> message_type -> Read_buffer.t -> t
+  val decode_packet : options -> message_type -> Read_buffer.t -> t
 
   val decode_fixed_header : int -> message_type * options
 end
