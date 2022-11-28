@@ -6,3 +6,4 @@ setup.data
 setup.log
 !.gitignore
 *.install
+*~
