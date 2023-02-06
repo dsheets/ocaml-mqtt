@@ -4,3 +4,7 @@
  (preprocess
   (pps lwt_ppx))
  (libraries mqtt-client lwt alcotest alcotest-lwt))
+(test
+ (name packet_test)
+ (modules packet_test)
+ (libraries mqtt-client alcotest))

@@ -101,7 +101,7 @@ module Encoder : sig
 
   val pubcomp : int -> string
 
-  val suback : int -> Mqtt_core.qos list -> string
+  val suback : int -> (Mqtt_core.qos, unit) result list -> string
 
   val puback : int -> string
 
@@ -112,7 +112,7 @@ module Encoder : sig
   val publish :
     dup:bool ->
     qos:Mqtt_core.qos ->
-    retain:bool -> id:int -> topic:string -> string -> string
+    retain:bool -> ?id:int -> topic:string -> string -> string
 
   val connect_payload :
     ?credentials:Mqtt_core.credentials ->
@@ -124,9 +124,9 @@ module Encoder : sig
     ?will:will ->
     ?clean_session:bool -> ?keep_alive:int -> string -> string
 
-  val connect_data : connect -> string
-
   val connack : session_present:bool -> connection_status -> string
+
+  val message : t -> string
 end
 
 module Decoder : sig

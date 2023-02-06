@@ -254,7 +254,11 @@ module Encoder = struct
     let paylen = List.length qoses + 2 in
     let buf = Buffer.create (paylen + 5) in
     let msgid = int16be id |> Bytes.to_string in
-    let q2i q = bits_of_qos q |> int8be |> Bytes.to_string in
+    let q2i qe =
+      (match qe with Ok q -> bits_of_qos q | Error () -> 0x80)
+      |> int8be
+      |> Bytes.to_string
+    in
     let blit q = Buffer.add_string buf (q2i q) in
     let hdr = fixed_header Suback_pkt paylen in
     Buffer.add_string buf hdr;
@@ -283,10 +287,10 @@ module Encoder = struct
     List.iter addtopic topics;
     Buffer.contents buf
 
-  let publish ~dup ~qos ~retain ~id ~topic payload =
+  let publish ~dup ~qos ~retain ?id ~topic payload =
     let id_data =
       if qos = Atleast_once || qos = Exactly_once then
-        Bytes.to_string (int16be id)
+        opt_with (fun x -> Bytes.to_string (int16be x)) "" id
       else ""
     in
     let dup = if qos = Atmost_once then false else dup in
@@ -363,6 +367,24 @@ module Encoder = struct
     in
     let variable_header = flags ^ connection_status in
     fixed_header ^ variable_header
+
+  let message = function
+    | Connect c -> connect_data c
+    | Connack { session_present; connection_status } ->
+      connack ~session_present connection_status
+    | Subscribe { message_id; topics } -> subscribe ~id:message_id topics
+    | Suback (id, qoss) -> suback id qoss
+    | Unsubscribe (id, topics) -> unsubscribe ~id topics
+    | Unsuback id -> unsuback id
+    | Publish { options = { dup; qos; retain }; message_id; topic; payload } ->
+      publish ~dup ~qos ~retain ?id:message_id ~topic payload
+    | Puback id -> puback id
+    | Pubrec id -> pubrec id
+    | Pubrel id -> pubrel id
+    | Pubcomp id -> pubcomp id
+    | Pingreq -> pingreq ()
+    | Pingresp -> pingresp ()
+    | Disconnect -> disconnect ()
 end
 
 module Decoder = struct
