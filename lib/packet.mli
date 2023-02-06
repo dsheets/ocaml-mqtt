@@ -24,13 +24,6 @@ type message_type =
 
 val message_type_of_byte : int -> message_type
 
-type message = {
-  topic : string;
-  message : string;
-  qos : qos;
-  retain : bool;
-}
-
 type connection_status =
   | Accepted
   | Unacceptable_protocol_version

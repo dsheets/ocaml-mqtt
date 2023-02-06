@@ -1,3 +1,5 @@
+open Types
+
 type t
 
 exception Connection_error
@@ -5,8 +7,8 @@ exception Connection_error
 val connect :
   ?id:string ->
   ?tls_ca:string ->
-  ?credentials:Types.credentials ->
-  ?will:Packet.message ->
+  ?credentials:credentials ->
+  ?will:message ->
   ?clean_session:bool ->
   ?keep_alive:int ->
   ?on_message:(topic:string -> string -> unit Lwt.t) ->
@@ -38,36 +40,14 @@ val connect :
     ]} *)
 
 val disconnect : t -> unit Lwt.t
-(** Disconnects the client from the MQTT broker.
-
-    {[
-      let%lwt () = Mqtt_client.disconnect client
-    ]} *)
 
 val publish :
   ?dup:bool ->
-  ?qos:Types.qos ->
+  ?qos:qos ->
   ?retain:bool ->
   topic:string ->
   string ->
   t ->
   unit Lwt.t
-(** Publish a message with payload to a given topic.
 
-    {[
-      let payload = "Hello world";
-      let%lwt () = Mqtt_client.publish(~topic="news", payload, client);
-    ]} *)
-
-val subscribe : (string * Types.qos) list -> t -> unit Lwt.t
-(** Subscribes the client to a non-empty list of topics.
-
-    {[
-      let topics =
-        [
-          ("news/fashion", Mqtt_client.Atmost_once);
-          ("news/science", Mqtt_client.Atleast_once);
-        ]
-      in
-      Mqtt_client.subscribe topics client
-    ]} *)
+val subscribe : (string * qos) list -> t -> unit Lwt.t

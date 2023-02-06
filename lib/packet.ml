@@ -33,13 +33,6 @@ type message_type =
   | Pingresp_pkt
   | Disconnect_pkt
 
-type message = {
-  topic : string;
-  message : string;
-  qos : qos;
-  retain : bool;
-}
-
 type connection_status =
   | Accepted
   | Unacceptable_protocol_version
