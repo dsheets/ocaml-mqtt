@@ -148,9 +148,10 @@ let open_tls_connection ~client_id ~ca_file host port =
     let%lwt authenticator = X509_lwt.authenticator (`Ca_file ca_file) in
     Tls_lwt.connect authenticator (host, port)
   with exn ->
+    let s = Printexc.to_string exn in
     let%lwt () =
       Log.err (fun log ->
-          log "[%s] could not get address info for %S" client_id host)
+          log "[%s] could not get address info for %S %S" client_id host s)
     in
     Lwt.fail exn
 
@@ -220,6 +221,8 @@ let connect ?(id = "ocaml-mqtt") ?tls_ca ?credentials ?will
     ?(clean_session = true) ?(keep_alive = 30)
     ?(on_message = default_on_message) ?(on_disconnect = default_on_disconnect)
     ?(on_error = default_on_error) ?(port = 1883) hosts =
+  let clean_session = clean_session || id = "" in
+
   let%lwt ((ic, oc) as connection) =
     create_connection ?tls_ca ~port ~client_id:id hosts
   in
