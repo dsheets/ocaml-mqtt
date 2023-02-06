@@ -23,7 +23,7 @@ type message_type =
 
 val message_type_of_byte : int -> message_type
 
-type will = {
+type message = {
   topic : string;
   message : string;
   qos : Mqtt_core.qos;
@@ -47,7 +47,7 @@ val connection_status_of_int : int -> connection_status
 type connect = {
   client_id : string;
   credentials : Mqtt_core.credentials option;
-  will : will option;
+  will : message option;
   clean_session : bool;
   keep_alive : int;
 }
@@ -116,12 +116,12 @@ module Encoder : sig
 
   val connect_payload :
     ?credentials:Mqtt_core.credentials ->
-    ?will:will ->
+    ?will:message ->
     ?clean_session:bool -> ?keep_alive:int -> string -> string
 
   val connect :
     ?credentials:Mqtt_core.credentials ->
-    ?will:will ->
+    ?will:message ->
     ?clean_session:bool -> ?keep_alive:int -> string -> string
 
   val connack : session_present:bool -> connection_status -> string

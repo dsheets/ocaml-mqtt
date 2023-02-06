@@ -33,7 +33,7 @@ type message_type =
   | Pingresp_pkt
   | Disconnect_pkt
 
-type will = {
+type message = {
   topic : string;
   message : string;
   qos : Mqtt_core.qos;
@@ -76,7 +76,7 @@ let connection_status_of_int = function
 type connect = {
   client_id : string;
   credentials : credentials option;
-  will : will option;
+  will : message option;
   clean_session : bool;
   keep_alive : int;
 }
