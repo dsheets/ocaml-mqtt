@@ -45,7 +45,7 @@ type t = {
   id : string;
   inflight : (int, unit Lwt_condition.t * Packet.t) Hashtbl.t;
   mutable reader : unit Lwt.t;
-  on_message : topic:string -> string -> unit Lwt.t;
+  on_message : message -> unit Lwt.t;
   on_disconnect : t -> unit Lwt.t;
   on_error : t -> exn -> unit Lwt.t;
   should_stop_reader : unit Lwt_condition.t;
@@ -60,7 +60,7 @@ let default_on_error client exn =
   in
   Lwt.fail exn
 
-let default_on_message ~topic:_ _ = Lwt.return_unit
+let default_on_message _ = Lwt.return_unit
 let default_on_disconnect _ = Lwt.return_unit
 
 let read_packets client =
@@ -82,18 +82,18 @@ let read_packets client =
     let%lwt () =
       match packet with
       (* Publish with QoS 0: push *)
-      | Publish { options = { qos = Atmost_once; _ }; message_id = None; topic; payload } ->
-        client.on_message ~topic payload
+      | Publish { options = { qos = Atmost_once; retain; _ }; message_id = None; topic; payload } ->
+        client.on_message { qos = Atmost_once; retain; topic; payload }
       (* Publish with QoS 0 and packet identifier: error *)
       | Publish { options = { qos = Atmost_once; _ }; message_id = Some _; _ } ->
         Lwt.fail
           (Failure
              "protocol violation: publish packet with qos 0 must not have id")
       (* Publish with QoS 1 *)
-      | Publish { options = { qos = Atleast_once; _ }; message_id = Some id; topic; payload } ->
+      | Publish { options = { qos = Atleast_once; retain; _ }; message_id = Some id; topic; payload } ->
         (* - Push the message to the consumer queue.
            - Send back the PUBACK packet. *)
-        let%lwt () = client.on_message ~topic payload in
+        let%lwt () = client.on_message { qos = Atleast_once; retain; topic; payload } in
         let puback = Packet.Encoder.puback id in
         Lwt_io.write out_chan puback
       | Publish { options = { qos = Atleast_once; _ }; message_id = None; _} ->
@@ -320,6 +320,9 @@ let publish ?(dup = false) ?(qos = Atleast_once) ?(retain = false)
     let pkt_data = Packet.Encoder.pubrel id in
     let%lwt () = Lwt_io.write oc pkt_data in
     Lwt_condition.wait cond
+
+let publish_message ?(dup = false) {qos; retain; topic; payload} =
+  publish ~dup ~qos ~retain ~topic payload
 
 let subscribe topics client =
   if topics = [] then raise (Invalid_argument "empty topics");

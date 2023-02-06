@@ -320,10 +320,10 @@ module Encoder = struct
     let flags, pay =
       (0, addlen id)
       |> addbit clean_session clean_session_bit
-      |> opt_with (fun {topic; message; qos; retain} (flags, hdr) ->
+      |> opt_with (fun {topic; payload; qos; retain} (flags, hdr) ->
              (flags lor qos_bits qos, hdr)
              |> addbit retain will_retain_bit
-             |> addhdr2 0x04 topic message
+             |> addhdr2 0x04 topic payload
            ) (fun x -> x) will
       |> adduserpass credentials
     in
@@ -398,8 +398,8 @@ module Decoder = struct
         let qos = qos_of_bits ((hdr land 0x18) lsr 3) in
         let retain = 0 <> hdr land 0x20 in
         let topic = rs rb in
-        let message = rs rb in
-        Some {topic; message; qos; retain}
+        let payload = rs rb in
+        Some {topic; payload; qos; retain}
       else None
     in
     let credentials =

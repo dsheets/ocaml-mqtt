@@ -598,7 +598,7 @@ let test_subscribe_msg _switch () =
   in
   let client () =
     let cond = Lwt_condition.create () in
-    let on_message ~topic:topic' str =
+    let on_message { topic=topic'; payload=str; _ } =
       Alcotest.(check string "PUBLISH topic" topic' topic);
       Alcotest.(check string "PUBLISH content" str content);
       let%lwt () = Lwt_condition.wait cond in

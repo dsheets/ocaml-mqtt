@@ -11,7 +11,7 @@ val connect :
   ?will:message ->
   ?clean_session:bool ->
   ?keep_alive:int ->
-  ?on_message:(topic:string -> string -> unit Lwt.t) ->
+  ?on_message:(message -> unit Lwt.t) ->
   ?on_disconnect:(t -> unit Lwt.t) ->
   ?on_error:(t -> exn -> unit Lwt.t) ->
   ?port:int ->
@@ -49,5 +49,7 @@ val publish :
   string ->
   t ->
   unit Lwt.t
+
+val publish_message : ?dup:bool -> message -> t -> unit Lwt.t
 
 val subscribe : (string * qos) list -> t -> unit Lwt.t

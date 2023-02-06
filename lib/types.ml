@@ -4,7 +4,7 @@ type qos = Atmost_once | Atleast_once | Exactly_once
 
 type message = {
   topic : string;
-  message : string;
+  payload : string;
   qos : qos;
   retain : bool;
 }

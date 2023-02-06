@@ -6,7 +6,7 @@ let host = "127.0.0.1"
 let port = 1883
 
 let sub_example () =
-  let on_message ~topic payload = Lwt_io.printlf "%s: %s" topic payload in
+  let on_message msg = Lwt_io.printlf "%s: %s" msg.topic msg.payload in
   let%lwt () = Lwt_io.printl "Starting subscriber..." in
   let%lwt client = C.connect ~on_message ~id:"client-1" ~port [ host ] in
   C.subscribe [ ("topic-1", Atmost_once) ] client
