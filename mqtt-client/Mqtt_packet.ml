@@ -357,7 +357,7 @@ module Encoder = struct
     let will = d.will in
     let clean_session = d.clean_session in
     let keep_alive = d.keep_alive in
-    connect_payload ?credentials ?will ~clean_session ~keep_alive client_id
+    connect ?credentials ?will ~clean_session ~keep_alive client_id
 
   let connack ~session_present status =
     let fixed_header = fixed_header Connack_pkt 2 in
@@ -389,9 +389,9 @@ end
 
 module Decoder = struct
   let decode_connect rb =
-    let lead = Read_buffer.read rb 9 in
+    let lead = Read_buffer.read rb 7 in
     if "\000\004MQTT\004" <> lead then
-      raise (Invalid_argument "invalid MQTT or version");
+      raise (Invalid_argument (Printf.sprintf "invalid MQTT or version %S" lead));
     let hdr = Read_buffer.read_uint8 rb in
     let keep_alive = Read_buffer.read_uint16 rb in
     let has_username = 0 <> hdr land 0x80 in
