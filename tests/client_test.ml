@@ -1,3 +1,5 @@
+open Mqtt
+
 let port = ref 9000
 
 let port () =
@@ -612,7 +614,7 @@ let test_subscribe_msg _switch () =
 let () =
   let open Alcotest_lwt in
   Lwt_main.run
-  @@ run "Mqtt"
+  @@ run "Mqtt_client"
        [
          ( "connect",
            [

@@ -1,4 +1,4 @@
-module C = Mqtt_client
+module C = Mqtt.Mqtt_client
 
 let host = "127.0.0.1"
 let port = 1883
