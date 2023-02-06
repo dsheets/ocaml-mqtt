@@ -1,33 +1,12 @@
 type t
-(** Represents an MQTT client.
-
-    To create a new client use {!val:Mqtt_client.connect}. *)
-
-(** Client authentication credentials.
-
-    MQTT supports two authentication methods: username with password, or
-    username only.
-
-    The credentials will be sent in plain text, unless TLS is used. See
-    {{!val:Mqtt_client.connect} connection options} for more information. *)
-type credentials = Credentials of string * string | Username of string
-
-(** Client error & exceptions
-
-    Defines the exceptions raised by the client *)
 
 exception Connection_error
-
-(** Quality of Service level.
-
-    Defines the guarantee of delivery for messages. *)
-type qos = Atmost_once | Atleast_once | Exactly_once
 
 val connect :
   ?id:string ->
   ?tls_ca:string ->
-  ?credentials:credentials ->
-  ?will:Mqtt_packet.message ->
+  ?credentials:Types.credentials ->
+  ?will:Packet.message ->
   ?clean_session:bool ->
   ?keep_alive:int ->
   ?on_message:(topic:string -> string -> unit Lwt.t) ->
@@ -67,7 +46,7 @@ val disconnect : t -> unit Lwt.t
 
 val publish :
   ?dup:bool ->
-  ?qos:qos ->
+  ?qos:Types.qos ->
   ?retain:bool ->
   topic:string ->
   string ->
@@ -80,7 +59,7 @@ val publish :
       let%lwt () = Mqtt_client.publish(~topic="news", payload, client);
     ]} *)
 
-val subscribe : (string * qos) list -> t -> unit Lwt.t
+val subscribe : (string * Types.qos) list -> t -> unit Lwt.t
 (** Subscribes the client to a non-empty list of topics.
 
     {[

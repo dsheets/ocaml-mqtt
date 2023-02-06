@@ -1,4 +1,4 @@
-open Mqtt.Mqtt_packet
+open Mqtt.Packet
 
 (* TODO: this is silly *)
 let decode_length s i =
@@ -37,7 +37,7 @@ let test_subscribe_encdec () = ()
 
 (* Run the tests *)
 let () = Alcotest.(
-  run "Mqtt_packet" [
+  run "Packet" [
       ( "connect",
         [
           test_case "Encode/decode" `Quick test_connect_encdec;

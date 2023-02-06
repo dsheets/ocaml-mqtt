@@ -1,3 +1,5 @@
+open Types
+
 let fmt = Format.asprintf
 
 type connection = Lwt_io.input_channel * Lwt_io.output_channel
@@ -22,7 +24,7 @@ let decode_length inch =
 
 let read_packet inch =
   let%lwt header_byte = Lwt_io.read_char inch in
-  let typ = Mqtt_packet.message_type_of_byte (Char.code header_byte) in
+  let typ = Packet.message_type_of_byte (Char.code header_byte) in
   let%lwt count = decode_length inch in
 
   let data = Bytes.create count in
@@ -32,7 +34,7 @@ let read_packet inch =
   in
   let pkt =
     Read_buffer.make (data |> Bytes.to_string)
-    |> Mqtt_packet.Decoder.decode_packet typ
+    |> Packet.Decoder.decode_packet typ
   in
   Lwt.return pkt
 
@@ -41,7 +43,7 @@ module Log = (val Logs_lwt.src_log (Logs.Src.create "mqtt.client"))
 type t = {
   cxn : connection;
   id : string;
-  inflight : (int, unit Lwt_condition.t * Mqtt_packet.t) Hashtbl.t;
+  inflight : (int, unit Lwt_condition.t * Packet.t) Hashtbl.t;
   mutable reader : unit Lwt.t;
   on_message : topic:string -> string -> unit Lwt.t;
   on_disconnect : t -> unit Lwt.t;
@@ -92,7 +94,7 @@ let read_packets client =
         (* - Push the message to the consumer queue.
            - Send back the PUBACK packet. *)
         let%lwt () = client.on_message ~topic payload in
-        let puback = Mqtt_packet.Encoder.puback id in
+        let puback = Packet.Encoder.puback id in
         Lwt_io.write out_chan puback
       | Publish { options = { qos = Atleast_once; _ }; message_id = None; _} ->
         Lwt.fail
@@ -129,7 +131,7 @@ let disconnect client =
   in
   let _, oc = client.cxn in
   Lwt_condition.signal client.should_stop_reader ();
-  let%lwt () = Lwt_io.write oc (Mqtt_packet.Encoder.disconnect ()) in
+  let%lwt () = Lwt_io.write oc (Packet.Encoder.disconnect ()) in
   let%lwt () = client.on_disconnect client in
   Log.info (fun log -> log "[%s] Client disconnected." client.id)
 
@@ -162,7 +164,7 @@ let run_pinger ~keep_alive client =
   let keep_alive = 0.75 *. float_of_int keep_alive in
   let rec loop () =
     let%lwt () = Lwt_unix.sleep keep_alive in
-    let pingreq_packet = Mqtt_packet.Encoder.pingreq () in
+    let pingreq_packet = Packet.Encoder.pingreq () in
     let%lwt () = Lwt_io.write output pingreq_packet in
     loop ()
   in
@@ -228,7 +230,7 @@ let connect ?(id = "ocaml-mqtt") ?tls_ca ?credentials ?will
   in
 
   let connect_packet =
-    Mqtt_packet.Encoder.connect ?credentials ?will ~clean_session ~keep_alive id
+    Packet.Encoder.connect ?credentials ?will ~clean_session ~keep_alive id
   in
   let%lwt () = Lwt_io.write oc connect_packet in
   let inflight = Hashtbl.create 16 in
@@ -271,7 +273,7 @@ let connect ?(id = "ocaml-mqtt") ?tls_ca ?credentials ?will
     Lwt.return client
   | Connack pkt ->
     let conn_status =
-      Mqtt_packet.connection_status_to_string pkt.connection_status
+      Packet.connection_status_to_string pkt.connection_status
     in
     let%lwt () =
       Log.err (fun log -> log "[%s] Connection failed: %s" id conn_status)
@@ -284,38 +286,38 @@ let connect ?(id = "ocaml-mqtt") ?tls_ca ?credentials ?will
     in
     Lwt.fail Connection_error
 
-let publish ?(dup = false) ?(qos = Mqtt_core.Atleast_once) ?(retain = false)
+let publish ?(dup = false) ?(qos = Atleast_once) ?(retain = false)
     ~topic payload client =
   let _, oc = client.cxn in
   match qos with
   | Atmost_once ->
     let pkt_data =
-      Mqtt_packet.Encoder.publish ~dup ~qos ~retain ~id:0 ~topic payload
+      Packet.Encoder.publish ~dup ~qos ~retain ~id:0 ~topic payload
     in
     Lwt_io.write oc pkt_data
   | Atleast_once ->
     let id = gen_id () in
     let cond = Lwt_condition.create () in
-    let expected_ack_pkt = Mqtt_packet.Puback id in
+    let expected_ack_pkt = Packet.Puback id in
     Hashtbl.add client.inflight id (cond, expected_ack_pkt);
     let pkt_data =
-      Mqtt_packet.Encoder.publish ~dup ~qos ~retain ~id ~topic payload
+      Packet.Encoder.publish ~dup ~qos ~retain ~id ~topic payload
     in
     let%lwt () = Lwt_io.write oc pkt_data in
     Lwt_condition.wait cond
   | Exactly_once ->
     let id = gen_id () in
     let cond = Lwt_condition.create () in
-    let expected_ack_pkt = Mqtt_packet.Pubrec id in
+    let expected_ack_pkt = Packet.Pubrec id in
     Hashtbl.add client.inflight id (cond, expected_ack_pkt);
     let pkt_data =
-      Mqtt_packet.Encoder.publish ~dup ~qos ~retain ~id ~topic payload
+      Packet.Encoder.publish ~dup ~qos ~retain ~id ~topic payload
     in
     let%lwt () = Lwt_io.write oc pkt_data in
     let%lwt () = Lwt_condition.wait cond in
-    let expected_ack_pkt = Mqtt_packet.Pubcomp id in
+    let expected_ack_pkt = Packet.Pubcomp id in
     Hashtbl.add client.inflight id (cond, expected_ack_pkt);
-    let pkt_data = Mqtt_packet.Encoder.pubrel id in
+    let pkt_data = Packet.Encoder.pubrel id in
     let%lwt () = Lwt_io.write oc pkt_data in
     Lwt_condition.wait cond
 
@@ -323,7 +325,7 @@ let subscribe topics client =
   if topics = [] then raise (Invalid_argument "empty topics");
   let _, oc = client.cxn in
   let pkt_id = gen_id () in
-  let subscribe_packet = Mqtt_packet.Encoder.subscribe ~id:pkt_id topics in
+  let subscribe_packet = Packet.Encoder.subscribe ~id:pkt_id topics in
   let qos_list = List.map (fun (_, q) -> Ok q) topics in
   let cond = Lwt_condition.create () in
   Hashtbl.add client.inflight pkt_id (cond, Suback (pkt_id, qos_list));
@@ -333,5 +335,3 @@ let subscribe topics client =
       let topics = List.map fst topics in
       Log.info (fun log ->
           log "[%s] Subscribed to %a." client.id Fmt.Dump.(list string) topics))
-
-include Mqtt_core

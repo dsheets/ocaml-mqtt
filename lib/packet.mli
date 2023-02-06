@@ -1,7 +1,8 @@
+open Types
 
 type publish_options = {
   dup : bool;
-  qos : Mqtt_core.qos;
+  qos : qos;
   retain : bool;
 }
 
@@ -26,7 +27,7 @@ val message_type_of_byte : int -> message_type
 type message = {
   topic : string;
   message : string;
-  qos : Mqtt_core.qos;
+  qos : qos;
   retain : bool;
 }
 
@@ -46,7 +47,7 @@ val connection_status_of_int : int -> connection_status
 
 type connect = {
   client_id : string;
-  credentials : Mqtt_core.credentials option;
+  credentials : credentials option;
   will : message option;
   clean_session : bool;
   keep_alive : int;
@@ -59,7 +60,7 @@ type connack = {
 
 type subscribe = {
   message_id : int;
-  topics : (string * Mqtt_core.qos) list;
+  topics : (string * qos) list;
 }
 
 type publish = {
@@ -73,7 +74,7 @@ type t =
   | Connect of connect
   | Connack of connack
   | Subscribe of subscribe
-  | Suback of int * (Mqtt_core.qos, unit) result list
+  | Suback of int * (qos, unit) result list
   | Unsubscribe of int * string list
   | Unsuback of int
   | Publish of publish
@@ -101,26 +102,26 @@ module Encoder : sig
 
   val pubcomp : int -> string
 
-  val suback : int -> (Mqtt_core.qos, unit) result list -> string
+  val suback : int -> (qos, unit) result list -> string
 
   val puback : int -> string
 
   val disconnect : unit -> string
 
-  val subscribe : id:int -> (string * Mqtt_core.qos) list -> string
+  val subscribe : id:int -> (string * qos) list -> string
 
   val publish :
     dup:bool ->
-    qos:Mqtt_core.qos ->
+    qos:qos ->
     retain:bool -> ?id:int -> topic:string -> string -> string
 
   val connect_payload :
-    ?credentials:Mqtt_core.credentials ->
+    ?credentials:credentials ->
     ?will:message ->
     ?clean_session:bool -> ?keep_alive:int -> string -> string
 
   val connect :
-    ?credentials:Mqtt_core.credentials ->
+    ?credentials:credentials ->
     ?will:message ->
     ?clean_session:bool -> ?keep_alive:int -> string -> string
 

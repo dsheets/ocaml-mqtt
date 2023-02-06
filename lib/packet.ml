@@ -1,5 +1,5 @@
 module BE = EndianBytes.BigEndian
-open Mqtt_core
+open Types
 
 let int16be n =
   let s = Bytes.create 2 in
@@ -13,7 +13,7 @@ let int8be n =
 
 type publish_options = {
   dup : bool;
-  qos : Mqtt_core.qos;
+  qos : qos;
   retain : bool;
 }
 
@@ -36,7 +36,7 @@ type message_type =
 type message = {
   topic : string;
   message : string;
-  qos : Mqtt_core.qos;
+  qos : qos;
   retain : bool;
 }
 

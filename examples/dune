@@ -4,3 +4,9 @@
  (preprocess
   (pps lwt_ppx))
  (libraries mqtt-client lwt))
+(executable
+ (name Tls)
+ (modules Tls)
+ (preprocess
+  (pps lwt_ppx))
+ (libraries mqtt-client lwt logs logs.lwt tls tls.lwt))
